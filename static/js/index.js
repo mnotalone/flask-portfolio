@@ -6,8 +6,9 @@
   const mobileThemeIcon = document.getElementById('mobile-theme-icon');
 
   const savedTheme = localStorage.getItem('theme');
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const startDark = savedTheme === 'dark' || (!savedTheme && prefersDark);
+  // Only start in dark mode if the user explicitly saved 'dark'.
+  // This forces the default to light mode even if the OS prefers dark.
+  const startDark = savedTheme === 'dark';
 
   function updateTheme(willBeDark) {
     html.classList.toggle('dark', willBeDark);
@@ -47,14 +48,19 @@
       e.preventDefault();
       const target = document.querySelector(link.getAttribute('href'));
       if (target) {
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        // Close mobile menu
+        // account for fixed header
+        const header = document.getElementById('site-header');
+        const headerOffset = header ? header.offsetHeight : 72;
+        const targetPosition = target.getBoundingClientRect().top + window.pageYOffset - headerOffset - 8; // small gap
+        window.scrollTo({ top: targetPosition, behavior: 'smooth' });
+
+        // Close mobile/desktop menu
         const menu = document.getElementById('mobile-menu');
-        const btn = document.getElementById('mobile-menu-btn');
-        if (menu && btn) {
+        if (menu) {
           menu.classList.remove('open');
-          btn.querySelector('span').textContent = 'menu';
         }
+        // reset any menu buttons icons
+        document.querySelectorAll('#mobile-menu-btn span, #desktop-menu-btn span').forEach(s => s.textContent = 'menu');
       }
     });
   });
@@ -78,42 +84,42 @@
   window.addEventListener('scroll', updateActive);
   updateActive(); // on load
 
-  // === MOBILE MENU TOGGLE ===
-  const mobileBtn = document.getElementById('mobile-menu-btn');
+  // === MENU TOGGLE (supports mobile + desktop button)
+  const menuBtns = Array.from(document.querySelectorAll('#mobile-menu-btn, #desktop-menu-btn'));
   const mobileMenu = document.getElementById('mobile-menu');
-  const menuIcon = mobileBtn?.querySelector('span');
   let closeTimeout;
 
-  const openMenu = () => {
+  const openMenu = (btn) => {
     clearTimeout(closeTimeout);
     mobileMenu.classList.add('open');
-    menuIcon.textContent = 'close';
-    menuIcon.style.transform = 'rotate(180deg)';
+    const span = btn?.querySelector('span');
+    if (span) {
+      span.textContent = 'close';
+      span.style.transform = 'rotate(180deg)';
+    }
   };
 
   const closeMenu = () => {
+    if (!mobileMenu) return;
     mobileMenu.classList.remove('open');
-    menuIcon.textContent = 'menu';
-    menuIcon.style.transform = 'rotate(0)';
+    menuBtns.forEach(b => {
+      const s = b.querySelector('span');
+      if (s) { s.textContent = 'menu'; s.style.transform = 'rotate(0)'; }
+    });
   };
 
-  // Handle click events
-  mobileBtn?.addEventListener('click', () => {
-    if (mobileMenu.classList.contains('open')) {
-      closeMenu();
-    } else {
-      openMenu();
-    }
+  menuBtns.forEach(btn => {
+    // click toggles
+    btn?.addEventListener('click', () => {
+      if (!mobileMenu) return;
+      if (mobileMenu.classList.contains('open')) closeMenu();
+      else openMenu(btn);
+    });
+
+    // hover opens (good for desktop)
+    btn?.addEventListener('mouseenter', () => openMenu(btn));
+    btn?.addEventListener('mouseleave', () => { closeTimeout = setTimeout(closeMenu, 300); });
   });
 
-  // Handle hover events
-  mobileBtn?.addEventListener('mouseenter', openMenu);
-  
-  // Handle mouse leave with delay
-  const handleMouseLeave = () => {
-    closeTimeout = setTimeout(closeMenu, 300);
-  };
-
-  mobileBtn?.addEventListener('mouseleave', handleMouseLeave);
   mobileMenu?.addEventListener('mouseenter', () => clearTimeout(closeTimeout));
-  mobileMenu?.addEventListener('mouseleave', handleMouseLeave);
+  mobileMenu?.addEventListener('mouseleave', () => { closeTimeout = setTimeout(closeMenu, 300); });
